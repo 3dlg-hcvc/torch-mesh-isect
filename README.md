@@ -42,22 +42,17 @@ Please note that in the current implementation, for batching one needs to provid
 
 ## Installation
 
-Before installing anything please make sure to set the environment variable
+~~Before installing anything please make sure to set the environment variable
 *$CUDA_SAMPLES_INC* to the path that contains the header `helper_math.h`, which
-can be found in the repo [CUDA Samples repository](https://github.com/NVIDIA/cuda-samples).
-To install the module run the following commands:  
+can be found in the repo [CUDA Samples repository](https://github.com/NVIDIA/cuda-samples).~~
 
-**1. Clone this repository**
 ```Shell
-git clone https://github.com/vchoutas/torch-mesh-isect
+git clone git@github.com:3dlg-hcvc/torch-mesh-isect.git
 cd torch-mesh-isect
-```
-**2. Install the dependencies**
-```Shell
+module load LIB/CUDA/11.2 LIB/CUDNN/8.1.0-CUDA11.2
+conda create -n tmi python=3.7
+pip install torch==1.11.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
 pip install -r requirements.txt 
-```
-**3. Run the *setup.py* script**
-```Shell
 python setup.py install
 ```
 
