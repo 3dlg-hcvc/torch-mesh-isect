@@ -3,6 +3,7 @@
 tqdm
 numpy
 trimesh
+pyglet==1.5.27
 pyrender
 opencv-python
 matplotlib
