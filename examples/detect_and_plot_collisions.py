@@ -25,6 +25,7 @@ import os
 import time
 
 import argparse
+import tqdm
 
 try:
     input = raw_input
@@ -38,11 +39,29 @@ import torch.autograd as autograd
 from copy import deepcopy
 
 import numpy as np
-import tqdm
+import cv2
+
+os.environ["PYOPENGL_PLATFORM"] = "egl" #opengl seems to only work with TPU
 
 import trimesh
 import pyrender
+from pyrender import RenderFlags
+from pyrender import PerspectiveCamera,\
+                     DirectionalLight, SpotLight, PointLight,\
+                     MetallicRoughnessMaterial,\
+                     Primitive, Mesh, Node, Scene,\
+                     OffscreenRenderer
 from mesh_intersection.bvh_search_tree import BVH
+
+
+def as_mesh(scene_or_mesh):
+    if isinstance(scene_or_mesh, trimesh.Scene):
+        mesh = trimesh.util.concatenate([
+            trimesh.Trimesh(vertices=m.vertices, faces=m.faces)
+            for m in scene_or_mesh.geometry.values()])
+    else:
+        mesh = scene_or_mesh
+    return mesh
 
 
 if __name__ == "__main__":
@@ -62,6 +81,7 @@ if __name__ == "__main__":
     max_collisions = args.max_collisions
 
     input_mesh = trimesh.load(mesh_fn)
+    input_mesh = as_mesh(input_mesh)
 
     print('Number of triangles = ', input_mesh.faces.shape[0])
 
@@ -121,4 +141,27 @@ if __name__ == "__main__":
     scene.add(recv_mesh)
     scene.add(intr_mesh)
 
-    pyrender.Viewer(scene, use_raymond_lighting=True, cull_faces=False)
+    # pyrender.Viewer(scene, use_raymond_lighting=True, cull_faces=False)
+    
+    # import pdb; pdb.set_trace()
+    
+    # Use headless rendering
+    # # Set up the camera -- z-axis away from the scene, x-axis right, y-axis up
+    camera = pyrender.PerspectiveCamera(yfov=np.pi / 3.0)
+    s = np.sqrt(2)/2
+    camera_pose = np.array([
+           [1.0,  0.0,  0.0, 0.0],
+           [0.0,  s,  s, 1.2],
+           [0.0,  -s,   s,   1.2],
+           [0.0,  0.0, 0.0, 1.0],
+        ])
+    scene.add(camera, pose=camera_pose)
+
+    # Set up the light -- a single spot light in the same spot as the camera
+    light = pyrender.SpotLight(color=np.ones(3), intensity=3.0,
+                                   innerConeAngle=np.pi/16.0)
+    scene.add(light, pose=camera_pose)
+
+    r = pyrender.OffscreenRenderer(viewport_width=640, viewport_height=480, point_size=1.0)
+    color, depth = r.render(scene)
+    cv2.imwrite('debug.jpg', color)
