@@ -64,6 +64,20 @@ def as_mesh(scene_or_mesh):
     return mesh
 
 
+def normalize_verts(verts, scale_along_diagonal=True):
+    # centering and normalization
+    min_vert, _ = torch.min(verts, 0)
+    max_vert, _ = torch.max(verts, 0)
+    center = (min_vert + max_vert) / 2.0
+    verts -= center
+    if scale_along_diagonal:
+        scale = 1.0 / torch.linalg.vector_norm(max_vert - min_vert)
+    else:
+        scale = 1.0 / (max_vert - min_vert) # normalize each dim to 1
+    verts *= scale
+    return verts
+
+
 if __name__ == "__main__":
 
     device = torch.device('cuda')
@@ -80,14 +94,15 @@ if __name__ == "__main__":
     mesh_fn = args.mesh_fn
     max_collisions = args.max_collisions
 
-    input_mesh = trimesh.load(mesh_fn)
-    input_mesh = as_mesh(input_mesh)
+    obj = trimesh.load(mesh_fn)
+    mesh = as_mesh(obj)
 
-    print('Number of triangles = ', input_mesh.faces.shape[0])
+    print('Number of triangles = ', mesh.faces.shape[0])
 
-    vertices = torch.tensor(input_mesh.vertices,
+    vertices = torch.tensor(mesh.vertices,
                             dtype=torch.float32, device=device)
-    faces = torch.tensor(input_mesh.faces.astype(np.int64),
+    mesh.vertices[:] = normalize_verts(vertices).cpu().numpy()
+    faces = torch.tensor(mesh.faces.astype(np.int64),
                          dtype=torch.long,
                          device=device)
 
@@ -110,8 +125,8 @@ if __name__ == "__main__":
     print('Number of collisions = ', collisions.shape[0])
     print('Percentage of collisions (%)',
           collisions.shape[0] / float(triangles.shape[1]) * 100)
-    recv_faces = input_mesh.faces[collisions[:, 0]]
-    intr_faces = input_mesh.faces[collisions[:, 1]]
+    recv_faces = mesh.faces[collisions[:, 0]]
+    intr_faces = mesh.faces[collisions[:, 1]]
 
     material = pyrender.MetallicRoughnessMaterial(
         metallicFactor=0.0,
@@ -126,13 +141,13 @@ if __name__ == "__main__":
         alphaMode='BLEND',
         baseColorFactor=[0.9, 0.0, 0.0, 1.0])
 
-    main_mesh = pyrender.Mesh.from_trimesh(input_mesh, material=material)
+    main_mesh = pyrender.Mesh.from_trimesh(mesh, material=material)
 
     recv_mesh = pyrender.Mesh.from_trimesh(
-        trimesh.Trimesh(input_mesh.vertices, recv_faces),
+        trimesh.Trimesh(mesh.vertices, recv_faces),
         material=recv_material)
     intr_mesh = pyrender.Mesh.from_trimesh(
-        trimesh.Trimesh(input_mesh.vertices, intr_faces),
+        trimesh.Trimesh(mesh.vertices, intr_faces),
         material=intr_material)
 
     scene = pyrender.Scene(bg_color=[0.0, 0.0, 0.0, 1.0],
@@ -148,19 +163,31 @@ if __name__ == "__main__":
     # Use headless rendering
     # # Set up the camera -- z-axis away from the scene, x-axis right, y-axis up
     camera = pyrender.PerspectiveCamera(yfov=np.pi / 3.0)
-    s = np.sqrt(2)/2
-    camera_pose = np.array([
-           [1.0,  0.0,  0.0, 0.0],
-           [0.0,  s,  s, 1.2],
-           [0.0,  -s,   s,   1.2],
-           [0.0,  0.0, 0.0, 1.0],
-        ])
-    scene.add(camera, pose=camera_pose)
+    dis = 1
+    azim = np.pi / 4
+    elev = np.pi / 6
+    cam_pose = np.eye(4)
+    y = dis * np.sin(elev)
+    x = dis * np.cos(elev) * np.sin(azim)
+    z = dis * np.cos(elev) * np.cos(azim)
+    cam_pose[:3, 3] = [x, y, z]
+    rotx = np.array([
+        [1.0, 0, 0],
+        [0.0, np.cos(elev), np.sin(elev)],
+        [0.0, -np.sin(elev), np.cos(elev)]
+    ])
+    roty = np.array([
+        [np.cos(azim), 0, np.sin(azim)],
+        [0.0, 1, 0.0],
+        [-np.sin(azim), 0, np.cos(azim)]
+    ])
+    cam_pose[:3, :3] = np.matmul(roty, rotx)
+    scene.add(camera, pose=cam_pose)
 
     # Set up the light -- a single spot light in the same spot as the camera
     light = pyrender.SpotLight(color=np.ones(3), intensity=3.0,
                                    innerConeAngle=np.pi/16.0)
-    scene.add(light, pose=camera_pose)
+    scene.add(light, pose=cam_pose)
 
     r = pyrender.OffscreenRenderer(viewport_width=640, viewport_height=480, point_size=1.0)
     color, depth = r.render(scene)
