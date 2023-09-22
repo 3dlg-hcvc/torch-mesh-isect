@@ -39,7 +39,7 @@
 
 // Size of the stack used to traverse the Bounding Volume Hierarchy tree
 #ifndef STACK_SIZE
-#define STACK_SIZE 64
+#define STACK_SIZE 128
 #endif /* ifndef STACK_SIZE */
 
 // Upper bound for the number of possible collisions
@@ -53,7 +53,7 @@
 
 // Number of threads per block for CUDA kernel launch
 #ifndef NUM_THREADS
-#define NUM_THREADS 128
+#define NUM_THREADS 256
 #endif
 
 #ifndef COLLISION_ORDERING
@@ -482,7 +482,7 @@ __device__ int traverseBVH(long2 *collisionIndices, BVHNodePtr<T> root,
             *stackPtr++ = childR; // push
         }
     }
-  } while (node != nullptr);
+  } while (node != nullptr && num_collisions <= max_collisions);
 
   return num_collisions;
 }
@@ -967,7 +967,7 @@ void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
 #if DEBUG_PRINT == 1
           std::cout << "Successfully built BVH" << std::endl;
 #endif
-
+          cudaCheckError();
 #if DEBUG_PRINT == 1
           std::cout << "Launching collision detection ..." << std::endl;
 #endif
