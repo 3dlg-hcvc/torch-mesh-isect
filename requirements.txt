@@ -8,3 +8,4 @@ pyrender
 opencv-python
 matplotlib
 shapely
+pandas
