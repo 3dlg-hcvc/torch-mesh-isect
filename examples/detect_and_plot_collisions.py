@@ -27,11 +27,6 @@ import time
 import argparse
 from tqdm import tqdm
 
-try:
-    input = raw_input
-except NameError:
-    pass
-
 import torch
 import torch.nn as nn
 import torch.autograd as autograd

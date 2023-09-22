@@ -239,7 +239,8 @@ std::ostream &operator<<(std::ostream &os, const Triangle<T> &x) {
 
 template <typename T>
 __global__ void ComputeTriBoundingBoxes(Triangle<T> *triangles,
-                                        int num_triangles, AABB<T> *bboxes) {
+                                        int num_triangles, 
+                                        AABB<T> *bboxes) {
   int idx = threadIdx.x + blockDim.x * blockIdx.x;
   if (idx < num_triangles) {
     bboxes[idx] = triangles[idx].ComputeBBox();
@@ -339,7 +340,6 @@ __device__
 #endif
 bool
 shareVertex(const Triangle<T> &tri1, const Triangle<T> &tri2) {
-
     return (tri1.v0.x == tri2.v0.x && tri1.v0.y == tri2.v0.y && tri1.v0.z == tri2.v0.z) ||
         (tri1.v0.x == tri2.v1.x && tri1.v0.y == tri2.v1.y && tri1.v0.z == tri2.v1.z) ||
         (tri1.v0.x == tri2.v2.x && tri1.v0.y == tri2.v2.y && tri1.v0.z == tri2.v2.z) ||
@@ -406,9 +406,12 @@ __device__
 }
 
 template <typename T>
-__device__ int traverseBVH(long2 *collisionIndices, BVHNodePtr<T> root,
-                           const AABB<T> &queryAABB, int queryObjectIdx,
-                           BVHNodePtr<T> leaf, int max_collisions,
+__device__ int traverseBVH(long2 *collisionIndices, 
+                           BVHNodePtr<T> root,
+                           const AABB<T> &queryAABB, 
+                           int queryObjectIdx,
+                           BVHNodePtr<T> leaf, 
+                           int max_collisions,
                            int *counter) {
   int num_collisions = 0;
   // Allocate traversal stack from thread-local memory,
@@ -447,25 +450,19 @@ __device__ int traverseBVH(long2 *collisionIndices, BVHNodePtr<T> root,
 
     // Query overlaps a leaf node => report collision.
     if (overlapL && childL->isLeaf()) {
-      // Append the collision to the main array
-      // Increase the number of detection collisions
+      // Append the indices of bounding boxes collision to the main array
+      // Increase the number of detection collisions for the leaf
       // num_collisions++;
       int coll_idx = atomicAdd(counter, 1);
-      collisionIndices[coll_idx] =
-          // collisionIndices[num_collisions % max_collisions] =
-          // *collisionIndices++ =
-          make_long2(min(queryObjectIdx, childL->idx),
-                     max(queryObjectIdx, childL->idx));
+      collisionIndices[coll_idx] = make_long2(min(queryObjectIdx, childL->idx), 
+                                              max(queryObjectIdx, childL->idx));
       num_collisions++;
     }
 
     if (overlapR && childR->isLeaf()) {
       int coll_idx = atomicAdd(counter, 1);
-      collisionIndices[coll_idx] = make_long2(
-          // min(queryObjectIdx, childR->idx),
-          // max(queryObjectIdx, childR->idx));
-          // collisionIndices[num_collisions % max_collisions] = make_long2(
-          min(queryObjectIdx, childR->idx), max(queryObjectIdx, childR->idx));
+      collisionIndices[coll_idx] = make_long2(min(queryObjectIdx, childR->idx), 
+                                              max(queryObjectIdx, childR->idx));
       num_collisions++;
     }
 
@@ -490,9 +487,11 @@ __device__ int traverseBVH(long2 *collisionIndices, BVHNodePtr<T> root,
 template <typename T>
 __global__ void findPotentialCollisions(long2 *collisionIndices,
                                         BVHNodePtr<T> root,
-                                        BVHNodePtr<T> leaves, int *triangle_ids,
+                                        BVHNodePtr<T> leaves, 
+                                        int *triangle_ids,
                                         int num_primitives,
-                                        int max_collisions, int *counter) {
+                                        int max_collisions, 
+                                        int *counter) {
   int idx = threadIdx.x + blockDim.x * blockIdx.x;
   if (idx < num_primitives) {
 
@@ -543,7 +542,8 @@ __device__
 }
 
 template <typename T>
-__global__ void ComputeMortonCodes(Triangle<T> *triangles, int num_triangles,
+__global__ void ComputeMortonCodes(Triangle<T> *triangles, 
+                                   int num_triangles,
                                    AABB<T> *scene_bb,
                                    MortonCode *morton_codes) {
   int idx = threadIdx.x + blockDim.x * blockIdx.x;
@@ -569,8 +569,11 @@ __device__
     __forceinline__
 #endif
     int
-    LongestCommonPrefix(int i, int j, MortonCode *morton_codes,
-                        int num_triangles, int *triangle_ids) {
+    LongestCommonPrefix(int i, 
+                        int j, 
+                        MortonCode *morton_codes,
+                        int num_triangles, 
+                        int *triangle_ids) {
   // This function will be called for i - 1, i, i + 1, so we might go beyond
   // the array limits
   if (i < 0 || i > num_triangles - 1 || j < 0 || j > num_triangles - 1)
@@ -591,8 +594,10 @@ __device__
 }
 
 template <typename T>
-__global__ void BuildRadixTree(MortonCode *morton_codes, int num_triangles,
-                               int *triangle_ids, BVHNodePtr<T> internal_nodes,
+__global__ void BuildRadixTree(MortonCode *morton_codes, 
+                               int num_triangles,
+                               int *triangle_ids, 
+                               BVHNodePtr<T> internal_nodes,
                                BVHNodePtr<T> leaf_nodes) {
   int idx = blockDim.x * blockIdx.x + threadIdx.x;
   if (idx >= num_triangles - 1)
@@ -663,8 +668,10 @@ __global__ void BuildRadixTree(MortonCode *morton_codes, int num_triangles,
 
 template <typename T>
 __global__ void CreateHierarchy(BVHNodePtr<T> internal_nodes,
-                                BVHNodePtr<T> leaf_nodes, int num_triangles,
-                                Triangle<T> *triangles, int *triangle_ids,
+                                BVHNodePtr<T> leaf_nodes, 
+                                int num_triangles,
+                                Triangle<T> *triangles, 
+                                int *triangle_ids,
                                 int *atomic_counters) {
   int idx = blockDim.x * blockIdx.x + threadIdx.x;
   if (idx >= num_triangles)
@@ -718,9 +725,11 @@ __global__ void CreateHierarchy(BVHNodePtr<T> internal_nodes,
 }
 
 template <typename T>
-void buildBVH(BVHNodePtr<T> internal_nodes, BVHNodePtr<T> leaf_nodes,
+void buildBVH(BVHNodePtr<T> internal_nodes, 
+              BVHNodePtr<T> leaf_nodes,
               Triangle<T>* __restrict__ triangles,
-              thrust::device_vector<int> *triangle_ids, int num_triangles,
+              thrust::device_vector<int> *triangle_ids, 
+              int num_triangles,
               int batch_size) {
 
 #if PRINT_TIMINGS == 1
@@ -803,8 +812,7 @@ void buildBVH(BVHNodePtr<T> internal_nodes, BVHNodePtr<T> leaf_nodes,
 #endif
   // Compute the morton codes for the centroids of all the primitives
   ComputeMortonCodes<T><<<gridSize, blockSize>>>(
-      triangles, num_triangles, scene_bb_ptr,
-      morton_codes.data().get());
+      triangles, num_triangles, scene_bb_ptr, morton_codes.data().get());
 #if PRINT_TIMINGS == 1
   cudaEventRecord(stop);
 #endif
@@ -868,8 +876,7 @@ void buildBVH(BVHNodePtr<T> internal_nodes, BVHNodePtr<T> leaf_nodes,
 #endif
   // Construct the radix tree using the sorted morton code sequence
   BuildRadixTree<T><<<gridSize, blockSize>>>(
-      morton_codes.data().get(), num_triangles, triangle_ids->data().get(),
-      internal_nodes, leaf_nodes);
+      morton_codes.data().get(), num_triangles, triangle_ids->data().get(), internal_nodes, leaf_nodes);
 #if PRINT_TIMINGS == 1
   cudaEventRecord(stop);
 #endif
@@ -892,10 +899,10 @@ void buildBVH(BVHNodePtr<T> internal_nodes, BVHNodePtr<T> leaf_nodes,
 #if DEBUG_PRINT == 1
   std::cout << "Start Linear BVH generation" << std::endl;
 #endif
-  // Build the Bounding Volume Hierarchy in parallel from the leaves to the
-  // root
+  // Build the Bounding Volume Hierarchy in parallel from the leaves to the root
   CreateHierarchy<T><<<gridSize, blockSize>>>(
-      internal_nodes, leaf_nodes, num_triangles, triangles,
+      internal_nodes, leaf_nodes, 
+      num_triangles, triangles, 
       triangle_ids->data().get(), counters.data().get());
 
   cudaCheckError();
@@ -919,7 +926,8 @@ void buildBVH(BVHNodePtr<T> internal_nodes, BVHNodePtr<T> leaf_nodes,
   return;
 }
 
-void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
+void bvh_cuda_forward(at::Tensor triangles, 
+                      at::Tensor *collision_tensor_ptr,
                       int max_collisions = 16) {
   const auto batch_size = triangles.size(0);
   const auto num_triangles = triangles.size(1);
@@ -962,8 +970,8 @@ void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
           std::cout << "Start building BVH" << std::endl;
 #endif
           buildBVH<scalar_t>(internal_nodes.data().get(),
-                             leaf_nodes.data().get(), triangles_ptr,
-                             &triangle_ids, num_triangles, batch_size);
+                             leaf_nodes.data().get(), 
+                             triangles_ptr, &triangle_ids, num_triangles, batch_size);
 #if DEBUG_PRINT == 1
           std::cout << "Successfully built BVH" << std::endl;
 #endif
@@ -980,8 +988,10 @@ void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
           findPotentialCollisions<scalar_t><<<gridSize, blockSize>>>(
               collisionIndices.data().get(),
               internal_nodes.data().get(),
-              leaf_nodes.data().get(), triangle_ids.data().get(), num_triangles,
-              max_collisions, &collision_idx_cnt.data().get()[bidx]);
+              leaf_nodes.data().get(), 
+              triangle_ids.data().get(), 
+              num_triangles, max_collisions, 
+              &collision_idx_cnt.data().get()[bidx]);
           cudaDeviceSynchronize();
 
 #if PRINT_TIMINGS == 1
@@ -1010,10 +1020,8 @@ void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
           cudaEventRecord(start);
 #endif
           int num_cand_collisions =
-              thrust::reduce(thrust::make_transform_iterator(
-                                 collisionIndices.begin(), is_valid_cnt()),
-                             thrust::make_transform_iterator(
-                                 collisionIndices.end(), is_valid_cnt()));
+              thrust::reduce(thrust::make_transform_iterator(collisionIndices.begin(), is_valid_cnt()),
+                             thrust::make_transform_iterator(collisionIndices.end(), is_valid_cnt()));
 #if PRINT_TIMINGS == 1
           cudaEventRecord(stop);
 #endif
@@ -1065,8 +1073,7 @@ void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
 #if PRINT_TIMINGS == 1
             cudaEventRecord(start);
 #endif
-            int tri_grid_size =
-                (collisions.size() + blockSize - 1) / blockSize;
+            int tri_grid_size = (collisions.size() + blockSize - 1) / blockSize;
             checkTriangleIntersections<scalar_t><<<tri_grid_size, blockSize>>>(
                 collisions.data().get(), triangles_ptr, collisions.size(),
                 num_triangles);
