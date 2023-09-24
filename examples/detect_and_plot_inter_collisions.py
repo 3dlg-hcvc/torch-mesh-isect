@@ -76,14 +76,25 @@ def normalize_verts(verts, scale_along_diagonal=True):
     return verts
 
 
-def detect_and_plot_collisions(mesh_file, args):
-    mesh_name = os.path.basename(mesh_file).split('.')[0]
-    mesh = trimesh.load(mesh_file, force="mesh", skip_materials=True)
+def detect_and_plot_collisions(mesh_file1, mesh_file2, args):
+    # mesh_name = os.path.basename(mesh_file).split('.')[0]
+    mesh1 = trimesh.load(mesh_file1, force="mesh", skip_materials=True)
+    mesh2 = trimesh.load(mesh_file2, force="mesh", skip_materials=True)
 
-    # mesh = as_mesh(obj)
+    vertices1 = torch.tensor(mesh1.vertices,
+                            dtype=torch.float32, device=device)
+    mesh1.vertices[:] = normalize_verts(vertices1).cpu().numpy()
+    num_mesh1_faces = len(mesh1.faces)
+    
+    vertices2 = torch.tensor(mesh2.vertices,
+                            dtype=torch.float32, device=device)
+    vertices2 = normalize_verts(vertices2).cpu().numpy()
+    mesh2.vertices[:] = (vertices2 + np.array([0, 0, -0.35]))
+    num_mesh2_faces = len(mesh2.faces)
+    
+    mesh = trimesh.util.concatenate([mesh1, mesh2])
     vertices = torch.tensor(mesh.vertices,
                             dtype=torch.float32, device=device)
-    mesh.vertices[:] = normalize_verts(vertices).cpu().numpy()
     faces = torch.tensor(mesh.faces.astype(np.int64),
                          dtype=torch.long,
                          device=device)
@@ -101,11 +112,18 @@ def detect_and_plot_collisions(mesh_file, args):
 
     outputs = outputs.detach().cpu().numpy().squeeze()
     collisions = outputs[outputs[:, 0] >= 0, :]
-    num_collisions = np.unique(collisions.reshape(-1)).shape[0]
+    
+    face_diffs = np.sign(collisions - num_mesh1_faces + 0.5)
+    valid = (face_diffs[:, 0] * face_diffs[:, 1]) < 0
+    collisions = collisions[valid]
+    
+    all_collisions = np.unique(collisions.reshape(-1))
+    mesh1_collisions = all_collisions[all_collisions < num_mesh1_faces]
+    mesh2_collisions = all_collisions[all_collisions >= num_mesh1_faces]
 
     if args.save_render:
-        recv_faces = mesh.faces[collisions[:, 0]]
-        intr_faces = mesh.faces[collisions[:, 1]]
+        recv_faces = mesh.faces[mesh1_collisions]
+        intr_faces = mesh.faces[mesh2_collisions]
 
         material = pyrender.MetallicRoughnessMaterial(
             metallicFactor=0.0,
@@ -167,17 +185,17 @@ def detect_and_plot_collisions(mesh_file, args):
         r = pyrender.OffscreenRenderer(viewport_width=640, viewport_height=480, point_size=1.0)
         color, depth = r.render(scene)
         os.makedirs(args.output, exist_ok=True)
-        cv2.imwrite(os.path.join(args.output, f'{mesh_name}.jpg'), color)
+        cv2.imwrite(os.path.join(args.output, f'inter_collisions.jpg'), color)
 
         if args.show:
             pyrender.Viewer(scene, use_raymond_lighting=True, cull_faces=False)
 
-    return (mesh_name, mesh.faces.shape[0], num_collisions, num_collisions / float(triangles.shape[1]) * 100, elapsed_time)
+    return mesh1.faces.shape[0], mesh1_collisions.shape[0], mesh2.faces.shape[0],  mesh2_collisions.shape[0], elapsed_time
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--path', type=str,
+    parser.add_argument('--path', type=str, nargs='+',
                         help='A mesh file (.obj, .ply, etc) or mesh paths to be checked for collisions')
     parser.add_argument('--max_collisions', default=16, type=int,
                         help='The maximum number of bounding box collisions')
@@ -185,26 +203,15 @@ if __name__ == "__main__":
                         help='Show visualization in pyrender Viewer')
     parser.add_argument('--save_render', default=False, action="store_true", 
                         help='Save object render and collision visualization')
-    parser.add_argument('--output', type=str, default='/project/3dlg-hcvc/rlsd/data/annotations/objects_self_collisions',
+    parser.add_argument('--output', type=str, default='./',
                         help='Save render output path')
     args, _ = parser.parse_known_args()
 
-    if args.path.endswith('txt'):
-        obj_paths = [p.strip() for p in open(args.path)]
-        all_objs, fails = [], []
-        for obj_path in tqdm(obj_paths):
-            try:
-                all_objs.append(detect_and_plot_collisions(obj_path, args))
-            except:
-                fails.append(obj_path)
-        data = pd.DataFrame(all_objs, columns=['mesh_name', 'num_faces', 'num_collisions', 'collision_ratio', 'elapsed_time'])
-        data.to_csv(os.path.join(args.output, "collisions.csv"), index=False)
-        with open(os.path.join(args.output, "collisions_fails.txt"), "w") as f:
-            for p in fails:
-                f.write(f"{p}\n")
-    else:
-        mesh_name, num_faces, num_collisions, collision_ratio, elapsed_time = detect_and_plot_collisions(args.path, args)
-        print('Number of triangles = ', num_faces)
-        print('Elapsed time', elapsed_time)
-        print('Number of collisions = ', num_collisions)
-        print('Percentage of collisions (%)', collision_ratio)
+    num_mesh1_faces, num_mesh1_collisions, num_mesh2_faces, num_mesh2_collisions, elapsed_time = detect_and_plot_collisions(args.path[0], args.path[1], args)
+    print('Elapsed time', elapsed_time)
+    print('Number of mesh1 triangles = ', num_mesh1_faces)
+    print('Number of mesh1 collisions = ', num_mesh1_collisions)
+    print('Percentage of collisions (%)', num_mesh1_collisions / num_mesh1_faces)
+    print('Number of mesh2 triangles = ', num_mesh2_faces)
+    print('Number of mesh2 collisions = ', num_mesh2_collisions)
+    print('Percentage of collisions (%)', num_mesh2_collisions / num_mesh2_faces)
