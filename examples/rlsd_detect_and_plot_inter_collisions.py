@@ -79,6 +79,14 @@ def normalize_verts(verts, scale_along_diagonal=True):
     verts *= scale
     return verts
 
+def center_scene(verts):
+    # centering
+    min_vert, _ = torch.min(verts, 0)
+    max_vert, _ = torch.max(verts, 0)
+    center = (min_vert + max_vert) / 2.0
+    verts -= center
+    return verts
+
 def get_rlsd_transform(args, object_names):
     obj_transforms = []
     task_detail_url = 'https://aspis.cmpt.sfu.ca/rlsd/api/scene-manager/tasks/{task_id}/json'
@@ -172,6 +180,9 @@ def detect_and_plot_collisions(mesh_file_name1, mesh_file_name2, args):
             alphaMode='BLEND',
             baseColorFactor=[0.9, 0.0, 0.0, 1.0])
 
+        mesh_vertices = torch.tensor(mesh.vertices,
+                            dtype=torch.float32, device=device)
+        mesh.vertices[:] = center_scene(mesh_vertices).cpu().numpy()
         main_mesh = pyrender.Mesh.from_trimesh(mesh, material=material)
 
         recv_mesh = pyrender.Mesh.from_trimesh(
@@ -183,17 +194,19 @@ def detect_and_plot_collisions(mesh_file_name1, mesh_file_name2, args):
 
         scene = pyrender.Scene(bg_color=[0.0, 0.0, 0.0, 1.0],
                             ambient_light=(0.3, 0.3, 0.3))
+        
         main_mesh1 = pyrender.Mesh.from_trimesh(mesh1, material=material)
         main_mesh2 = pyrender.Mesh.from_trimesh(mesh2, material=material)
-        scene.add(main_mesh1)
-        scene.add(main_mesh2)
+        # scene.add(main_mesh1)
+        # scene.add(main_mesh2)
+        scene.add(main_mesh)
         scene.add(recv_mesh)
         scene.add(intr_mesh)
     
         # Use headless rendering
         # # Set up the camera -- z-axis away from the scene, x-axis right, y-axis up
         camera = pyrender.PerspectiveCamera(yfov=np.pi / 3.0)
-        dis = 15
+        dis = 5
         azim = np.pi / 4
         elev = np.pi / 6
         cam_pose = np.eye(4)
