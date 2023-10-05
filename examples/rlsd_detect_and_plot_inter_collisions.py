@@ -99,14 +99,20 @@ def get_rlsd_transform(args, object_names):
     objects = task_detail_json["scene"]["object"]
     obj_asset_source = task_detail_json["scene"]["assetSource"]
     
-    obj_transforms = []
+    obj_transforms, obj_obbs = [], []
     for obj_id in object_names:
         relevant_obj = list(filter(lambda x: x["modelId"] == obj_id, objects))
         if len(relevant_obj) > 0:
-            relevant_obj = relevant_obj[0]
-            obj_transforms.append(np.transpose(np.array(relevant_obj["transform"]["data"]).reshape(4,4)))
+            obj = relevant_obj[0]
+            obj_transforms.append(np.transpose(np.array(obj["transform"]["data"]).reshape(4,4)))
+            
+            obj_obbs.append({
+                "centroid": np.array(obj["obb"]["centroid"], dtype=np.float32),
+                "basis": np.array(obj["obb"]["normalizedAxes"], dtype=np.float32).reshape(3, 3).T,
+                "size": np.array(obj["obb"]["axesLengths"], dtype=np.float32),
+            })
 
-    return obj_transforms
+    return obj_transforms, obj_obbs
 
 def get_object_path(object_id):
     if "wayfair" in object_id:
@@ -125,11 +131,22 @@ def detect_and_plot_collisions(mesh_file_name1, mesh_file_name2, args):
     mesh1 = trimesh.load(mesh_file1, force="mesh", skip_materials=True)
     mesh2 = trimesh.load(mesh_file2, force="mesh", skip_materials=True)
     
+    # for using obb transform
+    vertices1 = torch.tensor(mesh1.vertices, dtype=torch.float32, device=device)
+    mesh1.vertices[:] = normalize_verts(vertices1, scale_along_diagonal=False).cpu().numpy()
+    vertices2 = torch.tensor(mesh2.vertices, dtype=torch.float32, device=device)
+    mesh2.vertices[:] = normalize_verts(vertices2, scale_along_diagonal=False).cpu().numpy()
+    
     if args.apply_transform:
         objects = [mesh_file_name1, mesh_file_name2]
-        mesh_transforms = get_rlsd_transform(args, objects)
-        mesh1.apply_transform(mesh_transforms[0])
-        mesh2.apply_transform(mesh_transforms[1])
+        mesh_transforms, obbs = get_rlsd_transform(args, objects)
+        ## for using transform
+        # mesh1.apply_transform(mesh_transforms[0])
+        # mesh2.apply_transform(mesh_transforms[1])
+        ## for using obb transform
+        mesh1.vertices[:] = (obbs[0]['basis'] @ (mesh1.vertices * obbs[0]['size']).T).T + obbs[0]['centroid']
+        mesh2.vertices[:] = (obbs[1]['basis'] @ (mesh2.vertices * obbs[1]['size']).T).T + obbs[1]['centroid']
+    
 
     num_mesh1_faces = len(mesh1.faces)
     num_mesh2_faces = len(mesh2.faces)
