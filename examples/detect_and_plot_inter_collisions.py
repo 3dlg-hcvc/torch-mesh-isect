@@ -89,7 +89,7 @@ def detect_and_plot_collisions(mesh_file1, mesh_file2, args):
     vertices2 = torch.tensor(mesh2.vertices,
                             dtype=torch.float32, device=device)
     vertices2 = normalize_verts(vertices2).cpu().numpy()
-    mesh2.vertices[:] = (vertices2 + np.array([0, 0, -0.35]))
+    mesh2.vertices[:] = (vertices2 + np.array([0, 0, -0.3]))
     num_mesh2_faces = len(mesh2.faces)
     
     mesh = trimesh.util.concatenate([mesh1, mesh2])

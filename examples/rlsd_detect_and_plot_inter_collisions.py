@@ -41,7 +41,7 @@ import cv2
 os.environ["PYOPENGL_PLATFORM"] = "egl" #opengl seems to only work with TPU
 
 wayfair_mesh_file_path = "/datasets/internal/models3d/wayfair/wayfair_models_cleaned/{object_name}/{object_name}.glb"
-threedw_mesh_file_path = "/project/3dlg-hcvc/rlsd/data/3dw/glbmeshes/{object_name}/{object_name}.glb"
+threedw_mesh_file_path = "/project/3dlg-hcvc/rlsd/data/3dw/objmeshes/{object_name}/{object_name}.obj"
 
 import trimesh
 import pyrender
@@ -105,7 +105,7 @@ def get_rlsd_transform(args, object_names):
         if len(relevant_obj) > 0:
             relevant_obj = relevant_obj[0]
             obj_transforms.append(np.transpose(np.array(relevant_obj["transform"]["data"]).reshape(4,4)))
-            
+
     return obj_transforms
 
 def get_object_path(object_id):
@@ -195,8 +195,8 @@ def detect_and_plot_collisions(mesh_file_name1, mesh_file_name2, args):
         scene = pyrender.Scene(bg_color=[0.0, 0.0, 0.0, 1.0],
                             ambient_light=(0.3, 0.3, 0.3))
         
-        main_mesh1 = pyrender.Mesh.from_trimesh(mesh1, material=material)
-        main_mesh2 = pyrender.Mesh.from_trimesh(mesh2, material=material)
+        # main_mesh1 = pyrender.Mesh.from_trimesh(mesh1, material=material)
+        # main_mesh2 = pyrender.Mesh.from_trimesh(mesh2, material=material)
         # scene.add(main_mesh1)
         # scene.add(main_mesh2)
         scene.add(main_mesh)
@@ -207,8 +207,8 @@ def detect_and_plot_collisions(mesh_file_name1, mesh_file_name2, args):
         # # Set up the camera -- z-axis away from the scene, x-axis right, y-axis up
         camera = pyrender.PerspectiveCamera(yfov=np.pi / 3.0)
         dis = 5
-        azim = np.pi / 4
-        elev = np.pi / 6
+        azim = 0 # np.pi / 4
+        elev = - np.pi / 5
         cam_pose = np.eye(4)
         y = dis * np.sin(elev)
         x = dis * np.cos(elev) * np.sin(azim)
