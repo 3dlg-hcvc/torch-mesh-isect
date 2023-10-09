@@ -1,29 +1,5 @@
-# -*- coding: utf-8 -*-
-
-# Max-Planck-Gesellschaft zur Förderung der Wissenschaften e.V. (MPG) is
-# holder of all proprietary rights on this computer program.
-# You can only use this computer program if you have closed
-# a license agreement with MPG or you get the right to use the computer
-# program from someone who is authorized to grant you that right.
-# Any use of the computer program without a valid license is prohibited and
-# liable to prosecution.
-#
-# Copyright©2019 Max-Planck-Gesellschaft zur Förderung
-# der Wissenschaften e.V. (MPG). acting on behalf of its Max Planck Institute
-# for Intelligent Systems and the Max Planck Institute for Biological
-# Cybernetics. All rights reserved.
-#
-# Contact: ps-license@tuebingen.mpg.de
-
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-
-import sys
 import os
-
 import time
-
 import argparse
 from tqdm import tqdm
 import requests
@@ -125,7 +101,6 @@ def get_object_path(object_id):
     return file_path
 
 def detect_and_plot_collisions(mesh_file_name1, mesh_file_name2, args):
-    
     mesh_file1 = get_object_path(mesh_file_name1)
     mesh_file2 = get_object_path(mesh_file_name2)
     mesh1 = trimesh.load(mesh_file1, force="mesh", skip_materials=True)
@@ -270,7 +245,7 @@ if __name__ == "__main__":
                         help='A mesh file (.obj, .ply, etc) or mesh paths to be checked for collisions')
     parser.add_argument('--apply_transform', default=False, action="store_true",
                         help='Apply transform from RLSD?')
-    parser.add_argument('--max_collisions', default=16, type=int,
+    parser.add_argument('--max_collisions', default=8, type=int,
                         help='The maximum number of bounding box collisions')
     parser.add_argument('--show', default=False, action="store_true", 
                         help='Show visualization in pyrender Viewer')
