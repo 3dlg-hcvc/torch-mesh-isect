@@ -82,11 +82,14 @@ def get_rlsd_transform(args, object_names):
             obj = relevant_obj[0]
             obj_transforms.append(np.transpose(np.array(obj["transform"]["data"]).reshape(4,4)))
             
-            obj_obbs.append({
+            obb = {
                 "centroid": np.array(obj["obb"]["centroid"], dtype=np.float32),
                 "basis": np.array(obj["obb"]["normalizedAxes"], dtype=np.float32).reshape(3, 3).T,
                 "size": np.array(obj["obb"]["axesLengths"], dtype=np.float32),
-            })
+            }
+            if 'wayfair' in obj_id:
+                obb['basis'] = obb['basis'] @ np.array([[-1,0,0],[0,1,0],[0,0,-1]])
+            obj_obbs.append(obb)
 
     return obj_transforms, obj_obbs
 
@@ -132,6 +135,7 @@ def detect_and_plot_collisions(mesh_file_name1, mesh_file_name2, args):
     faces = torch.tensor(mesh.faces.astype(np.int64),
                          dtype=torch.long,
                          device=device)
+    # trimesh.exchange.export.export_mesh(mesh, os.path.join(args.output, f'{args.task_id}.obj'))
 
     batch_size = 1
     triangles = vertices[faces].unsqueeze(dim=0)
